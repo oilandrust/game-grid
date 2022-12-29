@@ -79,6 +79,7 @@
 //! }
 //! ```
 use core::slice::Iter;
+use std::error::Error;
 use std::marker::PhantomData;
 use std::ops::Index;
 use std::slice::IterMut;
@@ -153,12 +154,29 @@ impl<Cell> Grid<Cell>
 where
     Cell: GridCell,
 {
-    // TODO: test and make sure size is correct!
+    /// Construct a grid from a slice and the desired row width.
+    /// Any slice with width equal to 0 will produce an empty grid.
+    /// If the input slice is not a multiple of width,
+    /// the last row will be filled with empty cells so that the grid is square.
     pub fn from_slice(width: usize, data: &[Cell]) -> Self {
+        if width == 0 {
+            return Self {
+                cells: vec![],
+                width,
+                height: 0,
+            };
+        }
+        let height = data.len() / width;
+        let mut cells: Vec<Cell> = data.into();
+
+        if data.len() < width * height {
+            cells.resize(width * height, Cell::EMPTY);
+        }
+
         Self {
-            cells: data.into(),
-            width: width,
-            height: data.len() / width,
+            cells,
+            width,
+            height,
         }
     }
 
@@ -322,40 +340,58 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct ParseGridError<UserError> {
+    source: UserError,
+}
+
+impl<UserError: Error> Display for ParseGridError<UserError> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Error parsing grid: {}", self.source)
+    }
+}
+
+impl<UserError: Error> Error for ParseGridError<UserError> {}
+
+impl<UserError> From<UserError> for ParseGridError<UserError> {
+    fn from(value: UserError) -> Self {
+        ParseGridError { source: value }
+    }
+}
+
 impl<Cell> FromStr for Grid<Cell>
 where
     Cell: GridCell,
 {
-    type Err = String;
+    type Err = ParseGridError<<Cell as TryFrom<char>>::Error>;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let mut lines: Vec<Vec<Cell>> = string
+        let lines: Vec<Result<Vec<Cell>, _>> = string
             .split('\n')
-            .map(|line| {
-                line.chars()
-                    .filter_map(|char| char.try_into().ok())
-                    .collect()
-            })
+            .map(|line| line.chars().map(|char| char.try_into()).collect())
             .collect();
 
-        let width = lines
-            .iter()
-            .max_by_key(|line| line.len())
-            .ok_or("Malformated grid, empty line")?
-            .len();
+        let lines: Result<Vec<Vec<Cell>>, _> = lines.into_iter().collect();
 
-        let height = lines.len();
+        match lines {
+            Ok(mut lines) => {
+                let width = lines.iter().max_by_key(|line| line.len()).unwrap().len();
 
-        for line in &mut lines {
-            line.resize(width, Cell::EMPTY);
+                let height = lines.len();
+
+                for line in &mut lines {
+                    line.resize(width, Cell::EMPTY);
+                }
+
+                let cells: Vec<Cell> = lines.into_iter().flatten().collect();
+                Ok(Grid {
+                    cells,
+                    width,
+                    height,
+                })
+            }
+            Err(err) => Err(ParseGridError { source: err }),
         }
-
-        let grid: Vec<Cell> = lines.into_iter().flatten().collect();
-        Ok(Grid {
-            cells: grid,
-            width,
-            height,
-        })
     }
 }
 
@@ -490,5 +526,20 @@ mod tests {
         let grid: Grid<char> = Grid::from_slice(2, &['a', 'b', 'c', 'd']);
         assert_eq!(grid[0], 'a');
         assert_eq!(grid[Point::new(0, 0)], 'a');
+    }
+
+    #[test]
+    fn test_derive() {
+        use derive::GridCell;
+
+        #[derive(GridCell, PartialEq, Eq, Copy, Clone, Default)]
+        enum Cell {
+            #[cell('#')]
+            Wall,
+
+            //#[cell('.')]
+            #[default]
+            Empty,
+        }
     }
 }

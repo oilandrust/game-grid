@@ -12,6 +12,17 @@ pub fn derive_grid_cell(input: TokenStream) -> TokenStream {
 
     let implementation = quote!(
         impl GridCell for #enum_identifier {
+            const EMPTY: Self = Self::Empty;
+        }
+
+        impl TryFrom<char> for #enum_identifier {
+            type Error = ();
+
+            fn try_from(value: char) -> Result<Self, Self::Error> {
+                match value {
+                    _ => Err(()),
+                }
+            }
         }
     );
 

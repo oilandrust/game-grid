@@ -11,7 +11,7 @@
 //!
 //! ```
 //! use game_grid::*;
-//! // A custom Cell type.
+//! /// A custom Cell type.
 //! #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 //! enum Cell {
 //!     Empty,
@@ -61,22 +61,22 @@
 //!         self.y
 //!     }
 //! }
-//! fn main() {
-//!     let grid: Grid<Cell> = "####\n# o#\n####".parse().unwrap();
+//
+//! let grid: Grid<Cell> = "####\n# o#\n####".parse().unwrap();
 //!
-//!     let food_position = Point { x: 2, y: 1 };
-//!     if grid.cell_at(food_position) == Cell::Food {
-//!         println!("Found the food!");
-//!     }
-//!
-//!     let as_string = grid.to_string();
-//!
-//!     print!("{grid}");
-//!     // outputs:
-//!     // ####
-//!     // # o#
-//!     // ####
+//! let food_position = Point { x: 2, y: 1 };
+//! if grid.cell_at(food_position) == Cell::Food {
+//!     println!("Found the food!");
 //! }
+//!
+//! let as_string = grid.to_string();
+//!
+//! print!("{grid}");
+//! // outputs:
+//! // ####
+//! // # o#
+//! // ####
+//!
 //! ```
 use core::slice::Iter;
 use std::error::Error;
@@ -191,11 +191,6 @@ where
         self.cells[index] = value;
     }
 
-    /// Check whether a cell at a position as empty value.
-    pub fn is_empty<Point: GridPosition>(&self, position: Point) -> bool {
-        self.cell_at(position) == Cell::EMPTY
-    }
-
     /// Get the 2D position for an index in the linear array.
     pub fn position_for_index<Point: GridPosition>(&self, index: usize) -> Point {
         Point::new((index % self.width) as i32, (index / self.width) as i32)
@@ -228,6 +223,11 @@ where
     /// Returns the number of cells in the grid.
     pub fn len(&self) -> usize {
         self.cells.len()
+    }
+
+    /// Check whether teh grid is empty.
+    pub fn is_empty(&self) -> bool {
+        self.cells.len() == 0
     }
 
     /// Returns the width of the grid.
@@ -263,7 +263,7 @@ where
             .chunks(self.width)
             .rev()
             .flatten()
-            .map(|cell| *cell)
+            .copied()
             .collect();
         self
     }
@@ -376,7 +376,6 @@ where
         match lines {
             Ok(mut lines) => {
                 let width = lines.iter().max_by_key(|line| line.len()).unwrap().len();
-
                 let height = lines.len();
 
                 for line in &mut lines {
@@ -508,7 +507,7 @@ mod tests {
         let result = "".parse::<Grid<Cell>>();
         assert!(result.is_ok());
         let result = result.unwrap();
-        assert!(result.len() == 0);
+        assert!(result.is_empty());
 
         // Valid input.
         let result = "## #".parse::<Grid<Cell>>();
@@ -518,7 +517,7 @@ mod tests {
 
         // Wrong character is error.
         let result = "a".parse::<Grid<Cell>>();
-        assert!(!result.is_ok());
+        assert!(result.is_err());
     }
 
     #[test]
@@ -532,14 +531,17 @@ mod tests {
     fn test_derive() {
         use derive::GridCell;
 
-        #[derive(GridCell, PartialEq, Eq, Copy, Clone, Default)]
+        #[derive(GridCell, PartialEq, Eq, Copy, Clone, Debug)]
         enum Cell {
-            #[cell('#')]
-            Wall,
-
-            //#[cell('.')]
-            #[default]
+            //#[cell('a'..'z')]
+            //Wall,
+            #[cell('.')]
             Empty,
         }
+
+        assert_eq!(Cell::try_from('.'), Ok(Cell::Empty));
+        assert_eq!(Cell::try_from('a'), Err(()));
+
+        assert_eq!(char::from(Cell::Empty), '.');
     }
 }

@@ -1,0 +1,1 @@
+* Check reuse of character i different variants

@@ -340,6 +340,17 @@ where
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParseCellError(pub char);
+
+impl Display for ParseCellError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid character '{}'", self.0)
+    }
+}
+
+impl Error for ParseCellError {}
+
 #[derive(Debug)]
 pub struct ParseGridError<UserError> {
     source: UserError,
@@ -537,11 +548,21 @@ mod tests {
             //Wall,
             #[cell('.')]
             Empty,
+
+            #[cell('a'|'b')]
+            AOrB,
         }
 
+        // Existing single entry.
         assert_eq!(Cell::try_from('.'), Ok(Cell::Empty));
-        assert_eq!(Cell::try_from('a'), Err(()));
-
         assert_eq!(char::from(Cell::Empty), '.');
+
+        // Non existing entry.
+        assert!(Cell::try_from(',').is_err());
+
+        // Or entries.
+        assert_eq!(Cell::try_from('a'), Ok(Cell::AOrB));
+        assert_eq!(Cell::try_from('b'), Ok(Cell::AOrB));
+        assert_eq!(char::from(Cell::AOrB), 'a');
     }
 }

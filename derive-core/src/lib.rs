@@ -1,13 +1,15 @@
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident, TokenStream, TokenTree};
 use proc_macro_error::abort;
 use quote::ToTokens;
 use syn::{
-    parse2, parse_quote, spanned::Spanned, Arm, Attribute, Expr, ExprMatch, ExprRange, ImplItem,
-    ImplItemMethod, ItemEnum, ItemImpl, LitChar, Stmt,
+    parse2, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, token::Or, Arm,
+    Attribute, Expr, ExprLit, ExprMatch, ExprRange, ImplItem, ImplItemMethod, ItemEnum, ItemImpl,
+    Lit, LitChar, Pat, PatLit, PatOr, Stmt,
 };
 
 enum AttributeArg {
     Literal(LitChar),
+    Or(Vec<LitChar>),
     Range(ExprRange),
 }
 
@@ -16,13 +18,72 @@ struct VariantAttribute {
     identifier: Ident,
 }
 
+fn parse_or_pattern(cell_attribute: &Attribute) -> Result<Vec<LitChar>, ()> {
+    let tokens = cell_attribute.parse_args::<TokenStream>().unwrap();
+    let mut iter = tokens.into_iter();
+
+    let mut alternatives: Vec<LitChar> = Vec::new();
+
+    while let Some(token) = iter.next() {
+        match token {
+            TokenTree::Literal(literal) => {
+                if let Ok(char_lit) = parse_str::<LitChar>(&literal.to_string()) {
+                    alternatives.push(char_lit);
+                } else {
+                    abort!(
+                        cell_attribute.span(),
+                        "Currently only supporting char literals."
+                    );
+                }
+                if let Some(next) = iter.next() {
+                    match next {
+                        TokenTree::Punct(punct) => {
+                            if punct.as_char() != '|' {
+                                abort!(cell_attribute.span(), "Expected '|' delimiter.");
+                            }
+                        }
+                        _ => abort!(cell_attribute.span(), "Expected '|' delimiter."),
+                    };
+                }
+            }
+            _ => abort!(
+                cell_attribute.span(),
+                "Currently only supporting char literals."
+            ),
+        };
+    }
+
+    Ok(alternatives)
+}
+
 fn extract_argument(cell_attribute: &Attribute) -> Result<AttributeArg, ()> {
     if let Ok(char_lit) = cell_attribute.parse_args::<LitChar>() {
         Ok(AttributeArg::Literal(char_lit))
     } else if let Ok(range) = cell_attribute.parse_args::<ExprRange>() {
         Ok(AttributeArg::Range(range))
+    } else if let Ok(alternatives) = parse_or_pattern(cell_attribute) {
+        Ok(AttributeArg::Or(alternatives))
     } else {
         Err(())
+    }
+}
+
+fn construct_or_pattern(alternatives: &Vec<LitChar>) -> PatOr {
+    let mut cases = Punctuated::<Pat, Or>::new();
+    for char_lit in alternatives {
+        cases.push(Pat::Lit(PatLit {
+            attrs: vec![],
+            expr: Box::new(Expr::Lit(ExprLit {
+                attrs: vec![],
+                lit: Lit::Char(char_lit.clone()),
+            })),
+        }));
+    }
+
+    PatOr {
+        cases,
+        attrs: vec![],
+        leading_vert: None,
     }
 }
 
@@ -39,11 +100,14 @@ fn construct_try_from_match_arms(
                 arms.push(parse_quote!( #char_literal => Ok(#enum_identifier::#ident),));
             }
             AttributeArg::Range(_) => todo!(),
+            AttributeArg::Or(alternatives) => {
+                let or_pattern = construct_or_pattern(alternatives);
+                arms.push(parse_quote!( #or_pattern => Ok(#enum_identifier::#ident),));
+            }
         }
     }
 
-    arms.push(parse_quote!( _ => Err(()),));
-
+    arms.push(parse_quote!( _ => Err(ParseCellError(value)),));
     arms
 }
 
@@ -73,7 +137,7 @@ fn generate_try_from_char_impl(
     };
 
     let try_from_impl_type = parse_quote!(
-        type Error = ();
+        type Error = ParseCellError;
     );
     let implementation_base: ItemImpl = parse_quote!(
         impl TryFrom<char> for #enum_identifier {
@@ -99,6 +163,7 @@ fn construct_char_from_cell_match_arms(
                 arms.push(parse_quote!( #enum_identifier::#ident => #char_literal));
             }
             AttributeArg::Range(_) => todo!(),
+            AttributeArg::Or(_) => arms.push(parse_quote!( _ => ' ')),
         }
     }
 
@@ -228,13 +293,27 @@ mod tests {
     }
 
     #[test]
-    fn test_derive_grid_cell() {
+    fn test_basic_passing_code() {
         // Empty enum.
         let stream = quote!(
             enum A {
                 #[cell('#')]
                 Wall,
                 #[cell('.')]
+                Empty,
+            }
+        );
+
+        let output_stream = derive_grid_cell(stream);
+        assert!(!output_stream.is_empty());
+    }
+
+    #[test]
+    fn test_or_args() {
+        // Empty enum.
+        let stream = quote!(
+            enum A {
+                #[cell('.'|' ')]
                 Empty,
             }
         );

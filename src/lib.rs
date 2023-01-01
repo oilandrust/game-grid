@@ -11,58 +11,28 @@
 //!
 //! ```
 //! use game_grid::*;
-//! /// A custom Cell type.
-//! #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+//! /// A custom Cell type deriving the trait GridCell with specified associated char literals.
+//! #[derive(GridCell, Copy, Clone, Debug, PartialEq, Eq, Default)]
 //! enum Cell {
+//!     #[cell(' ')]
+//!     #[default]
 //!     Empty,
+//!     #[cell('#')]
 //!     Wall,
+//!     #[cell('o')]
 //!     Food,
 //! }
-//! // Implement the GridCell trait.
-//! impl GridCell for Cell {
-//!     const EMPTY: Self = Cell::Empty;
-//! }
-//! // Implement cell char conversion to enable printing a grid.
-//! impl From<Cell> for char {
-//!     fn from(cell: Cell) -> char {
-//!         match cell {
-//!             Cell::Wall => '#',
-//!             Cell::Empty => ' ',
-//!             Cell::Food => 'o',
-//!         }
-//!     }
-//! }
-//! // Implement char to cell conversion to enable parsing a grid from a string.
-//! impl TryFrom<char> for Cell {
-//!     type Error = ();
-//!     fn try_from(value: char) -> Result<Self, Self::Error> {
-//!         match value {
-//!             '#' => Ok(Cell::Wall),
-//!             ' ' => Ok(Cell::Empty),
-//!             'o' => Ok(Cell::Food),
-//!             _ => Err(()),
-//!         }
-//!     }
-//! }
+//!
 //! // A 2D point struct.
+//! #[derive(GridPosition)]
 //! struct Point {
 //!     x: i32,
 //!     y: i32,
 //! }
-//! // Implement the GridPosition struct to be able to index into the grid with our points.
-//! impl GridPosition for Point {
-//!     fn new(x: i32, y: i32) -> Self {
-//!         Self { x, y }
-//!     }
-//!     fn x(&self) -> i32 {
-//!         self.x
-//!     }
-//!     fn y(&self) -> i32 {
-//!         self.y
-//!     }
-//! }
-//
-//! let grid: Grid<Cell> = "####\n# o#\n####".parse().unwrap();
+//!
+//! let grid: Grid<Cell> = "####
+//! # o#
+//! ####".parse().unwrap();
 //!
 //! let food_position = Point { x: 2, y: 1 };
 //! if grid.cell_at(food_position) == Cell::Food {
@@ -86,26 +56,10 @@ use std::slice::IterMut;
 use std::{fmt::Display, str::FromStr};
 
 pub use derive::GridCell;
+pub use derive::GridPosition;
 
 /// Trait to implement a type that can be used as a grid cell.
-pub trait GridCell: TryFrom<char> + Clone + Copy + PartialEq + Eq {
-    /// Provide a value that is considered as an empty cell.
-    const EMPTY: Self;
-}
-
-/// Implementation of GridCell for char.
-impl GridCell for char {
-    const EMPTY: Self = ' ';
-}
-
-/// Implementation for Option<T>
-impl<T> GridCell for Option<T>
-where
-    Option<T>: From<char>,
-    T: Copy + PartialEq + Eq,
-{
-    const EMPTY: Self = None;
-}
+pub trait GridCell: TryFrom<char> + Clone + Copy + PartialEq + Eq {}
 
 /// Trait to implement a type that can be used as a grid position.
 pub trait GridPosition {
@@ -120,12 +74,9 @@ pub trait GridPosition {
 }
 
 #[cfg(feature = "bevy-ivec2")]
-use bevy::prelude::IVec2;
-
-#[cfg(feature = "bevy-ivec2")]
-impl GridPosition for IVec2 {
+impl GridPosition for bevy::prelude::IVec2 {
     fn new(x: i32, y: i32) -> Self {
-        IVec2::new(x, y)
+        Self::new(x, y)
     }
 
     fn x(&self) -> i32 {
@@ -141,10 +92,7 @@ impl GridPosition for IVec2 {
 /// The grid is represented as a linear vector containing cells and Grid provides
 /// functions to look up and write to the grid with 2-dimentional vector types implementing the trait
 #[derive(Debug, Clone)]
-pub struct Grid<Cell>
-where
-    Cell: GridCell,
-{
+pub struct Grid<Cell> {
     cells: Vec<Cell>,
     width: usize,
     height: usize,
@@ -152,12 +100,12 @@ where
 
 impl<Cell> Grid<Cell>
 where
-    Cell: GridCell,
+    Cell: Clone + Default,
 {
     /// Construct a grid from a slice and the desired row width.
     /// Any slice with width equal to 0 will produce an empty grid.
-    /// If the input slice is not a multiple of width,
-    /// the last row will be filled with empty cells so that the grid is square.
+    /// If the length of input slice is not a multiple of width,
+    /// the last row will be filled with default cell values so that the grid is square.
     pub fn from_slice(width: usize, data: &[Cell]) -> Self {
         if width == 0 {
             return Self {
@@ -170,7 +118,7 @@ where
         let mut cells: Vec<Cell> = data.into();
 
         if data.len() < width * height {
-            cells.resize(width * height, Cell::EMPTY);
+            cells.resize(width * height, Cell::default());
         }
 
         Self {
@@ -179,67 +127,41 @@ where
             height,
         }
     }
+}
 
-    /// Get the cell value at some position.
-    pub fn cell_at<Point: GridPosition>(&self, position: Point) -> Cell {
-        self.cells[self.index_for_position(position)]
-    }
+impl<Cell> Grid<Cell>
+where
+    Cell: Clone,
+{
+    /// Construct a grid from a slice and the desired row width.
+    /// Any slice with width equal to 0 will produce an empty grid.
+    /// The function will panic if the length of the input slice is not a multiple of width.
+    pub fn from_slice_exact(width: usize, data: &[Cell]) -> Self {
+        if width == 0 {
+            return Self {
+                cells: vec![],
+                width,
+                height: 0,
+            };
+        }
+        let height = data.len() / width;
 
-    /// Set the cell value at some position.
-    pub fn set_cell<Point: GridPosition>(&mut self, position: Point, value: Cell) {
-        let index = self.index_for_position(position);
-        self.cells[index] = value;
-    }
+        if data.len() != width * height {
+            panic!("'from_slice_exact' expects the input data's length to be a multiple of width.");
+        }
 
-    /// Get the 2D position for an index in the linear array.
-    pub fn position_for_index<Point: GridPosition>(&self, index: usize) -> Point {
-        Point::new((index % self.width) as i32, (index / self.width) as i32)
-    }
-
-    /// Get the index in the linear array for a 2D position.
-    pub fn index_for_position<Point: GridPosition>(&self, position: Point) -> usize {
-        position.x() as usize + self.width * position.y() as usize
-    }
-
-    /// An iterator visiting the cells in order of memory.
-    pub fn cells(&self) -> Iter<'_, Cell> {
-        self.cells.iter()
-    }
-
-    /// An iterator visiting the cells mutably in order of memory.
-    pub fn mut_cells(&mut self) -> IterMut<'_, Cell> {
-        self.cells.iter_mut()
-    }
-
-    /// An iterator visiting the cell and associated position in the grid.
-    pub fn iter<Point: GridPosition>(&self) -> GridIter<Cell, Point> {
-        GridIter {
-            current: 0,
-            grid: self,
-            phantom: PhantomData,
+        Self {
+            cells: data.into(),
+            width,
+            height,
         }
     }
+}
 
-    /// Returns the number of cells in the grid.
-    pub fn len(&self) -> usize {
-        self.cells.len()
-    }
-
-    /// Check whether teh grid is empty.
-    pub fn is_empty(&self) -> bool {
-        self.cells.len() == 0
-    }
-
-    /// Returns the width of the grid.
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    /// Returns the height of the grid.
-    pub fn height(&self) -> usize {
-        self.height
-    }
-
+impl<Cell> Grid<Cell>
+where
+    Cell: Clone + Copy,
+{
     /// Flips the order of the lines vertically. Useful when the game's y axis is upwards.
     /// # Example:
     /// ```
@@ -267,12 +189,71 @@ where
             .collect();
         self
     }
+
+    /// Get the cell value at some position.
+    pub fn cell_at<Point: GridPosition>(&self, position: Point) -> Cell {
+        self.cells[self.index_for_position(position)]
+    }
 }
 
-impl<Cell> Index<usize> for Grid<Cell>
-where
-    Cell: GridCell,
-{
+impl<Cell> Grid<Cell> {
+    /// Set the cell value at some position.
+    pub fn set_cell<Point: GridPosition>(&mut self, position: Point, value: Cell) {
+        let index = self.index_for_position(position);
+        self.cells[index] = value;
+    }
+
+    /// An iterator visiting the cells in order of memory.
+    pub fn cells(&self) -> Iter<'_, Cell> {
+        self.cells.iter()
+    }
+
+    /// An iterator visiting the cells mutably in order of memory.
+    pub fn mut_cells(&mut self) -> IterMut<'_, Cell> {
+        self.cells.iter_mut()
+    }
+
+    /// An iterator visiting the cell and associated position in the grid.
+    pub fn iter<Point: GridPosition>(&self) -> GridIter<Cell, Point> {
+        GridIter {
+            current: 0,
+            grid: self,
+            phantom: PhantomData,
+        }
+    }
+
+    /// Get the 2D position for an index in the linear array.
+    pub fn position_for_index<Point: GridPosition>(&self, index: usize) -> Point {
+        Point::new((index % self.width) as i32, (index / self.width) as i32)
+    }
+
+    /// Get the index in the linear array for a 2D position.
+    pub fn index_for_position<Point: GridPosition>(&self, position: Point) -> usize {
+        position.x() as usize + self.width * position.y() as usize
+    }
+
+    /// Returns the number of cells in the grid.
+    pub fn len(&self) -> usize {
+        self.cells.len()
+    }
+
+    /// Check whether teh grid is empty.
+    pub fn is_empty(&self) -> bool {
+        self.cells.len() == 0
+    }
+
+    /// Returns the width of the grid.
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Returns the height of the grid.
+    pub fn height(&self) -> usize {
+        self.height
+    }
+}
+
+impl<Cell> Index<usize> for Grid<Cell> {
     type Output = Cell;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -280,10 +261,7 @@ where
     }
 }
 
-impl<Cell, Point: GridPosition> Index<Point> for Grid<Cell>
-where
-    Cell: GridCell,
-{
+impl<Cell, Point: GridPosition> Index<Point> for Grid<Cell> {
     type Output = Cell;
 
     fn index(&self, position: Point) -> &Self::Output {
@@ -294,7 +272,7 @@ where
 impl<Cell> Display for Grid<Cell>
 where
     char: From<Cell>,
-    Cell: GridCell,
+    Cell: Copy,
 {
     fn fmt(&self, formater: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut output_string = String::with_capacity(self.cells.len() + (self.height - 1));
@@ -308,10 +286,7 @@ where
     }
 }
 
-pub struct GridIter<'a, Cell, Point>
-where
-    Cell: GridCell,
-{
+pub struct GridIter<'a, Cell, Point> {
     current: usize,
     grid: &'a Grid<Cell>,
     phantom: PhantomData<Point>,
@@ -319,8 +294,8 @@ where
 
 impl<'a, Cell, Point> Iterator for GridIter<'a, Cell, Point>
 where
-    Cell: GridCell,
     Point: GridPosition,
+    Cell: Copy,
 {
     type Item = (Point, Cell);
 
@@ -372,7 +347,7 @@ impl<UserError> From<UserError> for ParseGridError<UserError> {
 
 impl<Cell> FromStr for Grid<Cell>
 where
-    Cell: GridCell,
+    Cell: Default + TryFrom<char> + Clone,
 {
     type Err = ParseGridError<<Cell as TryFrom<char>>::Error>;
 
@@ -390,7 +365,7 @@ where
                 let height = lines.len();
 
                 for line in &mut lines {
-                    line.resize(width, Cell::EMPTY);
+                    line.resize(width, Cell::default());
                 }
 
                 let cells: Vec<Cell> = lines.into_iter().flatten().collect();
@@ -416,8 +391,10 @@ mod tests {
         Empty,
     }
 
-    impl GridCell for Cell {
-        const EMPTY: Self = Cell::Empty;
+    impl Default for Cell {
+        fn default() -> Self {
+            Cell::Empty
+        }
     }
 
     impl From<Cell> for char {
@@ -471,13 +448,9 @@ mod tests {
     #[test]
     fn test_struct_grid() {
         // Using a stuct.
-        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+        #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
         struct StructCell {
             c: char,
-        }
-
-        impl GridCell for StructCell {
-            const EMPTY: Self = StructCell { c: ' ' };
         }
 
         impl From<StructCell> for char {
@@ -532,6 +505,17 @@ mod tests {
     }
 
     #[test]
+    fn test_enum_grid_without_impl() {
+        #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+        enum Plain {
+            A,
+        }
+
+        let grid: Grid<Plain> = Grid::from_slice_exact(1, &[Plain::A]);
+        assert_eq!(grid[0], Plain::A);
+    }
+
+    #[test]
     fn test_indicing() {
         let grid: Grid<char> = Grid::from_slice(2, &['a', 'b', 'c', 'd']);
         assert_eq!(grid[0], 'a');
@@ -544,8 +528,8 @@ mod tests {
 
         #[derive(GridCell, PartialEq, Eq, Copy, Clone, Debug)]
         enum Cell {
-            //#[cell('a'..'z')]
-            //Wall,
+            // #[cell('A'..='Z')]
+            // Wall,
             #[cell('.')]
             Empty,
 

@@ -3,8 +3,8 @@ use proc_macro_error::abort;
 use quote::ToTokens;
 use syn::{
     parse2, parse_quote, parse_str, punctuated::Punctuated, spanned::Spanned, token::Or, Arm,
-    Attribute, Expr, ExprLit, ExprMatch, ExprRange, ImplItem, ImplItemMethod, ItemEnum, ItemImpl,
-    Lit, LitChar, Pat, PatLit, PatOr, Stmt,
+    Attribute, Expr, ExprLit, ExprRange, ImplItemMethod, ItemEnum, ItemImpl, Lit, LitChar, Pat,
+    PatLit, PatOr,
 };
 
 enum AttributeArg {
@@ -118,39 +118,23 @@ fn generate_try_from_char_impl(
     enum_identifier: &Ident,
     variants: &Vec<VariantAttribute>,
 ) -> ItemImpl {
-    let try_from_char_fn = {
-        let match_arms: Vec<Arm> = construct_try_from_match_arms(enum_identifier, variants);
-        let mut try_from_fn: ImplItemMethod = parse_quote!(
-            fn try_from(value: char) -> Result<Self, Self::Error> {
-                match value {}
+    let match_arms: Vec<Arm> = construct_try_from_match_arms(enum_identifier, variants);
+    let try_from_char_fn: ImplItemMethod = parse_quote!(
+        fn try_from(value: char) -> Result<Self, Self::Error> {
+            match value {
+                #(#match_arms)*
             }
-        );
-
-        let new_match = if let Stmt::Expr(Expr::Match(old_match)) = &try_from_fn.block.stmts[0] {
-            ExprMatch {
-                arms: match_arms,
-                ..old_match.clone()
-            }
-        } else {
-            panic!("should not happen")
-        };
-
-        try_from_fn.block.stmts[0] = Stmt::Expr(Expr::Match(new_match));
-        try_from_fn
-    };
-
-    let try_from_impl_type = parse_quote!(
-        type Error = ParseCellError;
-    );
-    let implementation_base: ItemImpl = parse_quote!(
-        impl TryFrom<char> for #enum_identifier {
         }
     );
 
-    ItemImpl {
-        items: vec![try_from_impl_type, ImplItem::Method(try_from_char_fn)],
-        ..implementation_base
-    }
+    let implementation_base: ItemImpl = parse_quote!(
+        impl TryFrom<char> for #enum_identifier {
+            type Error = ParseCellError;
+            #try_from_char_fn
+        }
+    );
+
+    implementation_base
 }
 
 fn construct_char_from_cell_match_arms(
@@ -163,12 +147,12 @@ fn construct_char_from_cell_match_arms(
         let ident = &variant.identifier;
         match &variant.argument {
             AttributeArg::Literal(char_literal) => {
-                arms.push(parse_quote!( #enum_identifier::#ident => #char_literal));
+                arms.push(parse_quote!( #enum_identifier::#ident => #char_literal,));
             }
             AttributeArg::Range(_) => todo!(),
             AttributeArg::Or(alternatives) => {
                 let char_literal = alternatives.first().unwrap();
-                arms.push(parse_quote!( #enum_identifier::#ident  => #char_literal))
+                arms.push(parse_quote!( #enum_identifier::#ident  => #char_literal,))
             }
         }
     }
@@ -177,36 +161,19 @@ fn construct_char_from_cell_match_arms(
 }
 
 fn generate_char_from_cell(enum_identifier: &Ident, variants: &Vec<VariantAttribute>) -> ItemImpl {
-    let char_from_cell_fn = {
-        let match_arms: Vec<Arm> = construct_char_from_cell_match_arms(enum_identifier, variants);
-        let mut char_from_cell: ImplItemMethod = parse_quote!(
-            fn from(cell: #enum_identifier) -> char {
-                match cell {}
-            }
-        );
+    let match_arms: Vec<Arm> = construct_char_from_cell_match_arms(enum_identifier, variants);
 
-        let new_match = if let Stmt::Expr(Expr::Match(old_match)) = &char_from_cell.block.stmts[0] {
-            ExprMatch {
-                arms: match_arms,
-                ..old_match.clone()
-            }
-        } else {
-            panic!("should not happen")
-        };
-
-        char_from_cell.block.stmts[0] = Stmt::Expr(Expr::Match(new_match));
-        char_from_cell
-    };
-
-    let implementation_base: ItemImpl = parse_quote!(
+    let implementation: ItemImpl = parse_quote!(
         impl From<#enum_identifier> for char {
+            fn from(cell: #enum_identifier) -> char {
+                match cell {
+                    #(#match_arms)*
+                }
+            }
         }
     );
 
-    ItemImpl {
-        items: vec![ImplItem::Method(char_from_cell_fn)],
-        ..implementation_base
-    }
+    implementation
 }
 
 pub fn derive_grid_cell(input: TokenStream) -> TokenStream {
@@ -318,6 +285,34 @@ mod tests {
         let stream = quote!(
             enum A {
                 #[cell('.'|' ')]
+                Empty,
+            }
+        );
+
+        let output_stream = derive_grid_cell(stream);
+        assert!(!output_stream.is_empty());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_wrong_synthax() {
+        let stream = quote!(
+            enum A {
+                #[cell('.'|)]
+                Empty,
+            }
+        );
+
+        let output_stream = derive_grid_cell(stream);
+        assert!(!output_stream.is_empty());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_wrong_synthax2() {
+        let stream = quote!(
+            enum A {
+                #[cell('.'|a)]
                 Empty,
             }
         );

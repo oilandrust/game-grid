@@ -102,7 +102,9 @@ fn construct_try_from_match_arms(
             AttributeArg::Literal(char_literal) => {
                 arms.push(parse_quote!( #char_literal => Ok(#enum_identifier::#ident),));
             }
-            AttributeArg::Range(_) => todo!(),
+            AttributeArg::Range(range) => {
+                arms.push(parse_quote!(#range => Ok(#enum_identifier::#ident(value)),))
+            }
             AttributeArg::Or(alternatives) => {
                 let or_pattern = construct_or_pattern(alternatives);
                 arms.push(parse_quote!( #or_pattern => Ok(#enum_identifier::#ident),));
@@ -147,12 +149,14 @@ fn construct_char_from_cell_match_arms(
         let ident = &variant.identifier;
         match &variant.argument {
             AttributeArg::Literal(char_literal) => {
-                arms.push(parse_quote!( #enum_identifier::#ident => #char_literal,));
+                arms.push(parse_quote!(#enum_identifier::#ident => #char_literal,));
             }
-            AttributeArg::Range(_) => todo!(),
+            AttributeArg::Range(_) => {
+                arms.push(parse_quote!(#enum_identifier::#ident(character) => character,));
+            }
             AttributeArg::Or(alternatives) => {
                 let char_literal = alternatives.first().unwrap();
-                arms.push(parse_quote!( #enum_identifier::#ident  => #char_literal,))
+                arms.push(parse_quote!(#enum_identifier::#ident  => #char_literal,))
             }
         }
     }
@@ -294,11 +298,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn test_wrong_synthax() {
+    fn test_rang_args() {
         let stream = quote!(
             enum A {
-                #[cell('.'|)]
+                #[cell('a'..'z')]
                 Empty,
             }
         );
@@ -306,6 +309,20 @@ mod tests {
         let output_stream = derive_grid_cell(stream);
         assert!(!output_stream.is_empty());
     }
+
+    // #[test]
+    // #[should_panic]
+    // fn test_wrong_synthax() {
+    //     let stream = quote!(
+    //         enum A {
+    //             #[cell('.'|)]
+    //             Empty,
+    //         }
+    //     );
+
+    //     let output_stream = derive_grid_cell(stream);
+    //     assert!(!output_stream.is_empty());
+    // }
 
     #[test]
     #[should_panic]

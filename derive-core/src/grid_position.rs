@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{parse2, ItemStruct};
 
 pub fn derive_grid_position(input: TokenStream) -> TokenStream {
-    let input_struct = match parse2::<ItemStruct>(input.clone()) {
+    let input_struct = match parse2::<ItemStruct>(input) {
         Ok(syntax_tree) => syntax_tree,
         Err(error) => return error.to_compile_error(),
     };
@@ -25,7 +25,7 @@ pub fn derive_grid_position(input: TokenStream) -> TokenStream {
         }
     );
 
-    implementation_base.into()
+    implementation_base
 }
 
 #[cfg(test)]

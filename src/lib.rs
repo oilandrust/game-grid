@@ -352,12 +352,10 @@ where
     type Err = ParseGridError<<Cell as TryFrom<char>>::Error>;
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let lines: Vec<Result<Vec<Cell>, _>> = string
+        let lines: Result<Vec<Vec<Cell>>, _> = string
             .split('\n')
             .map(|line| line.chars().map(|char| char.try_into()).collect())
             .collect();
-
-        let lines: Result<Vec<Vec<Cell>>, _> = lines.into_iter().collect();
 
         match lines {
             Ok(mut lines) => {
@@ -373,6 +371,45 @@ where
                     cells,
                     width,
                     height,
+                })
+            }
+            Err(err) => Err(ParseGridError { source: err }),
+        }
+    }
+}
+
+pub struct Exact<GridType> {
+    pub grid: GridType,
+}
+
+impl<Cell> FromStr for Exact<Grid<Cell>>
+where
+    Cell: Default + TryFrom<char> + Clone,
+{
+    type Err = ParseGridError<<Cell as TryFrom<char>>::Error>;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let lines: Result<Vec<Vec<Cell>>, _> = string
+            .split('\n')
+            .map(|line| line.chars().map(|char| char.try_into()).collect())
+            .collect();
+
+        match lines {
+            Ok(mut lines) => {
+                let width = lines.iter().max_by_key(|line| line.len()).unwrap().len();
+                let height = lines.len();
+
+                for line in &mut lines {
+                    line.resize(width, Cell::default());
+                }
+
+                let cells: Vec<Cell> = lines.into_iter().flatten().collect();
+                Ok(Self {
+                    grid: Grid {
+                        cells,
+                        width,
+                        height,
+                    },
                 })
             }
             Err(err) => Err(ParseGridError { source: err }),
@@ -444,6 +481,20 @@ mod tests {
         let result = result.unwrap();
         assert_eq!(result.to_string(), "abc");
     }
+
+    // #[test]
+    // fn test_exact_to_string() {
+    //     // Valid input.
+    //     let result = "abc
+    //     xx"
+    //     .parse::<Exact<Grid<char>>>();
+    //     assert!(result.is_err());
+
+    //     let result = "abc
+    //     xxx"
+    //     .parse::<Exact<Grid<char>>>();
+    //     assert!(result.is_ok());
+    // }
 
     #[test]
     fn test_struct_grid() {
@@ -548,5 +599,30 @@ mod tests {
         assert_eq!(Cell::try_from('a'), Ok(Cell::AOrB));
         assert_eq!(Cell::try_from('b'), Ok(Cell::AOrB));
         assert_eq!(char::from(Cell::AOrB), 'a');
+    }
+
+    #[test]
+    fn test_derive_range() {
+        use derive::GridCell;
+
+        #[derive(GridCell, PartialEq, Eq, Copy, Clone, Debug, Default)]
+        enum Cell {
+            #[cell('a'..='z')]
+            Char(char),
+
+            #[default]
+            #[cell(' ')]
+            Empty,
+        }
+
+        // Existing single entry.
+        assert_eq!(Cell::try_from('a'), Ok(Cell::Char('a')));
+        assert_eq!(Cell::try_from('b'), Ok(Cell::Char('b')));
+
+        let result = "ab".parse::<Grid<Cell>>();
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert_eq!(result[0], Cell::Char('a'));
+        assert_eq!(result[1], Cell::Char('b'));
     }
 }

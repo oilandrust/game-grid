@@ -194,6 +194,16 @@ where
     pub fn cell_at<Point: GridPosition>(&self, position: Point) -> Cell {
         self.cells[self.index_for_position(position)]
     }
+
+    pub fn new(width: usize, height: usize, value: Cell) -> Self {
+        let mut cells = Vec::new();
+        cells.resize(width * height, value);
+        Self {
+            width,
+            height,
+            cells,
+        }
+    }
 }
 
 impl<Cell> Grid<Cell> {
@@ -250,6 +260,14 @@ impl<Cell> Grid<Cell> {
     /// Returns the height of the grid.
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    /// Check if a position is in the grid bounds.
+    pub fn is_in_bounds<Point: GridPosition>(&self, position: Point) -> bool {
+        position.x() >= 0
+            && position.x() < self.width as i32
+            && position.y() >= 0
+            && position.y() < self.height as i32
     }
 }
 

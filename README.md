@@ -57,7 +57,7 @@ struct Point {
 // Create a grid of cells by parsing a string literal.
 let grid: Grid<Cell> = "#####\n\
                         #A o#\n\
-                        ####".parse().unwrap();
+                        #####".parse().unwrap();
 
 // Use iter() to iterate over the cells with associated position.
 let food_position: Point = grid.iter().find(|(_, cell)| *cell == Cell::Food).unwrap().0;

@@ -1,6 +1,14 @@
 # Game Grid
 `game-grid` provides a simple 2D grid that can be used to prototype games.
 
+## Key features:
+
+* Easy parsing of string literal to typed 2D grid thanks to a derive macro.
+* Indexing with a 2D vector struct ex: `Point { x: i32, y: i32 }` instead of always writing the usual `i = y * width + x`
+* std-like iterators and utilities.
+
+## Description
+
 The main struct is `Grid` that implements a grid able to contain values of a user `Cell` type. The user cell can be any type but it works best with enums that implement the `GridCell` trait. The `GridCell` derive macro allows to implement automatically conversions to and from `char`, allowing to convert a grid to an from strings. `Grid` provides access to the cells with 2D indexing with user types that implement the `GridPosition` trait. On top of that `Grid` provides iterators and other utilities.
 
 ## Using the Grid with Bevy IVec2

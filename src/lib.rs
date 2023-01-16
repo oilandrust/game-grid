@@ -380,6 +380,7 @@ where
     }
 }
 
+/// An iterator over a grid that gives access to a tupple `(Point, Cell)`
 pub struct GridIter<'a, Cell, Point> {
     current: usize,
     grid: &'a Grid<Cell>,
@@ -409,6 +410,7 @@ where
     }
 }
 
+/// Error that can be raised when parsing a cell, repoting the character that could not be read.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseCellError(pub char);
 
@@ -420,6 +422,7 @@ impl Display for ParseCellError {
 
 impl Error for ParseCellError {}
 
+/// Error that can be raised when parsing a grid.
 #[derive(Debug)]
 pub struct ParseGridError<UserError> {
     source: UserError,

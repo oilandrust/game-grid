@@ -154,7 +154,7 @@ impl GridPosition for bevy::prelude::IVec2 {
 /// assert_eq!(grid.width(), 2);
 /// assert_eq!(grid.height(), 2);
 ///
-/// // Add a was at cell (0, 0).
+/// // Add a wall at cell (0, 0).
 /// grid.set_cell(Point::new(0, 0), Cell::Wall);
 /// ```
 #[derive(Debug, Clone)]
@@ -308,12 +308,38 @@ impl<Cell> Grid<Cell> {
         }
     }
 
-    /// Get the 2D position for an index in the linear array.
+    /// Get the 2D position for an index in the linear array. index = y * width + x
+    ///
+    /// ```
+    /// use game_grid::*;
+    /// // A 2D point struct deriving GridPosition.
+    /// #[derive(GridPosition, PartialEq, Eq, Debug)]
+    /// struct Point {
+    ///     x: i32,
+    ///     y: i32,
+    /// }
+    /// let grid = Grid::<i32>::new(2, 2, 0);
+    ///
+    /// assert_eq!(grid.position_for_index::<Point>(3), Point::new(1, 1));
+    /// ```
     pub fn position_for_index<Point: GridPosition>(&self, index: usize) -> Point {
         Point::new((index % self.width) as i32, (index / self.width) as i32)
     }
 
-    /// Get the index in the linear array for a 2D position.
+    /// Get the index in the linear array for a 2D position. Index = y * width + x.
+    ///
+    /// ```
+    /// use game_grid::*;
+    /// // A 2D point struct deriving GridPosition.
+    /// #[derive(GridPosition, PartialEq, Eq, Debug)]
+    /// struct Point {
+    ///     x: i32,
+    ///     y: i32,
+    /// }
+    /// let grid = Grid::<i32>::new(2, 2, 0);
+    ///
+    /// assert_eq!(grid.index_for_position(Point::new(1, 1)), 3);
+    /// ```
     pub fn index_for_position<Point: GridPosition>(&self, position: Point) -> usize {
         position.x() as usize + self.width * position.y() as usize
     }

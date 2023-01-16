@@ -3,7 +3,7 @@
 
 The main struct is `Grid` that implements a grid able to contain values of a user `Cell` type. The user cell can be any type but it works best with enums that implement the `GridCell` trait. The `GridCell` derive macro allows to implement automatically conversions to and from `char`, allowing to convert a grid to an from strings. `Grid` provides access to the cells with 2D indexing with user types that implement the `GridPosition` trait. On top of that `Grid` provides iterators and other utilities.
 
-# Using the Grid with Bevy IVec2
+## Using the Grid with Bevy IVec2
 
 One of the core features of `game-grid` is to be able to index the grid with 2D vector structs that we use to make games.
 If you are using this with Bevy, the feature `bevy-ivec2` includes a trait implementation of `game_grid::GridPosition` for `IVec2` that allows to use `IVec2` as index.
@@ -14,7 +14,7 @@ To use it add this line to you `Cargo.toml`:
 game-grid = { git = "https://github.com/oilandrust/game-grid.git", features = ["bevy-ivec2"] }
 ```
 
-# Example
+## Example
 
 ```
 use game_grid::*;

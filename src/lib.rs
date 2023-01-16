@@ -3,49 +3,63 @@
 //! `game_grid` provides a simple 2D grid that can be used to prototype games.
 //!
 //! The main struct is `Grid` that implements a grid able to contain values of a user `Cell` type.
-//! The user cell must implement the `GameGrid` trait that provide an `EMPTY` value as well as conversion from and to `char`.
+//! The user cell can be any type but it works best with enums that implement the GridCell trait.
+//! The GridCell derive macro allows to implement automatically conversions to and from char, allowing to convert a grid to an from strings.
 //! `Grid` provides access to the cells with 2D indexing with user types that implement the `GridPosition` trait.
-//! On top of that `Grid` provide iterators, parsing form string, printing as well as other utilities.
+//! On top of that `Grid` provides iterators and other utilities.
 //!
 //! # Examples:
 //!
 //! ```
 //! use game_grid::*;
-//! /// A custom Cell type deriving the trait GridCell with specified associated char literals.
+//! // A custom Cell type deriving the trait GridCell with associated char literals.
 //! #[derive(GridCell, Copy, Clone, Debug, PartialEq, Eq, Default)]
 //! enum Cell {
-//!     #[cell(' ')]
-//!     #[default]
-//!     Empty,
+//!     // Wall cells are represented by '#'.
 //!     #[cell('#')]
 //!     Wall,
+//!
+//!     // Empty cells are represented by both ' ' and '.', the former will be used for display.
+//!     // A default value can be used by some Grid functionalities.
+//!     #[cell(' '|'.')]
+//!     #[default]
+//!     Empty,
+//!     
 //!     #[cell('o')]
 //!     Food,
+//!
+//!     // It is also possible to provide a range, the actual character can be captured.
+//!     #[cell('A'..='Z')]
+//!     Player(char),
 //! }
 //!
-//! // A 2D point struct.
-//! #[derive(GridPosition)]
+//! // A 2D point struct deriving GridPosition in order to be used as index into the grid.
+//! #[derive(GridPosition, PartialEq, Eq, Debug)]
 //! struct Point {
 //!     x: i32,
 //!     y: i32,
 //! }
 //!
-//! let grid: Grid<Cell> = "####
-//! # o#
-//! ####".parse().unwrap();
+//! // Create a grid of cells by parsing a string literal.
+//! let grid: Grid<Cell> = "#####\n\
+//!                         #A o#\n\
+//!                         #####".parse().unwrap();
 //!
-//! let food_position = Point { x: 2, y: 1 };
-//! if grid.cell_at(food_position) == Cell::Food {
-//!     println!("Found the food!");
+//! // Use iter() to iterate over the cells with associated position.
+//! let food_position: Point = grid.iter().find(|(_, cell)| *cell == Cell::Food).unwrap().0;
+//! assert_eq!(food_position, Point{ x: 3, y: 1 });
+//!
+//! // Index into the grid with 2D point type and retrieved the enum value captured during parsing.
+//! if let Cell::Player(player_char) = grid[Point::new(1, 1)] {
+//!     println!("Player id: {player_char}");
 //! }
 //!
-//! let as_string = grid.to_string();
-//!
+//! // Print the grid.
 //! print!("{grid}");
 //! // outputs:
-//! // ####
-//! // # o#
-//! // ####
+//! // #####
+//! // #A o#
+//! // #####
 //!
 //! ```
 use core::slice::Iter;
@@ -58,10 +72,38 @@ use std::{fmt::Display, str::FromStr};
 pub use derive::GridCell;
 pub use derive::GridPosition;
 
-/// Trait to implement a type that can be used as a grid cell.
+/// Trait to implement a type that can be used as a grid cell with pparsing and display functionalities.
+///
+/// The trait itself is empty but requires to implement `TryFrom<char>`.
+/// This trait is most useful by using the derive macro and specifying assiciated char values.
+///
+/// ```
+/// use game_grid::*;
+/// #[derive(GridCell, Copy, Clone, Debug, PartialEq, Eq, Default)]
+/// enum Cell {
+///     // Wall cells are represented by '#'.
+///     #[cell('#')]
+///     Wall,
+///
+///     // Empty cells are represented by both ' ' and '.', the former will be used for display.
+///     // A default value can be used by some Grid functionalities.
+///     #[cell(' '|'.')]
+///     #[default]
+///     Empty,
+///     
+///     #[cell('o')]
+///     Food,
+///
+///     // It is also possible to provide a range, the actual character can be captured.
+///     #[cell('A'..='Z')]
+///     Player(char),
+/// }
+/// ```
 pub trait GridCell: TryFrom<char> + Clone + Copy + PartialEq + Eq {}
 
 /// Trait to implement a type that can be used as a grid position.
+///
+/// This trait provides access to the x and y coordinates as well as a constructor used by the grid internaly.
 pub trait GridPosition {
     /// Construct a position from x and y coordinates.
     fn new(x: i32, y: i32) -> Self;
@@ -89,8 +131,32 @@ impl GridPosition for bevy::prelude::IVec2 {
 }
 
 /// A struct maintaining a grid usable for game prototyping.
-/// The grid is represented as a linear vector containing cells and Grid provides
-/// functions to look up and write to the grid with 2-dimentional vector types implementing the trait
+///
+/// The grid is stored as a linear `Vec` containing cells and Grid provides
+/// functions to look up and write to the grid with 2-dimentional vector types implementing the trait `GridPosition`
+///
+/// ```
+/// use game_grid::*;
+/// #[derive(Clone, Copy)]
+/// enum Cell {
+///     Wall,
+///     Empty,
+/// }
+///
+/// #[derive(GridPosition, PartialEq, Eq, Debug)]
+/// struct Point {
+///     x: i32,
+///     y: i32,
+/// }
+///
+/// // Create a 2x2 grid with empty cells.
+/// let mut grid: Grid<Cell> = Grid::new(2, 2, Cell::Empty);
+/// assert_eq!(grid.width(), 2);
+/// assert_eq!(grid.height(), 2);
+///
+/// // Add a was at cell (0, 0).
+/// grid.set_cell(Point::new(0, 0), Cell::Wall);
+/// ```
 #[derive(Debug, Clone)]
 pub struct Grid<Cell> {
     cells: Vec<Cell>,
@@ -103,6 +169,15 @@ where
     Cell: Clone + Default,
 {
     /// Construct a grid from a slice and the desired row width.
+    ///
+    /// ```
+    /// use game_grid::*;
+    /// // Create a 2x2 grid with some data.
+    /// let grid: Grid<i32> = Grid::from_slice(2, &[0, 1, 2, 3]);
+    /// assert_eq!(grid.width(), 2);
+    /// assert_eq!(grid.height(), 2);
+    /// ```
+    ///
     /// Any slice with width equal to 0 will produce an empty grid.
     /// If the length of input slice is not a multiple of width,
     /// the last row will be filled with default cell values so that the grid is square.
@@ -195,6 +270,7 @@ where
         self.cells[self.index_for_position(position)]
     }
 
+    /// Construct a new grid with width, height and an initial value.
     pub fn new(width: usize, height: usize, value: Cell) -> Self {
         let mut cells = Vec::new();
         cells.resize(width * height, value);
@@ -396,45 +472,6 @@ where
     }
 }
 
-pub struct Exact<GridType> {
-    pub grid: GridType,
-}
-
-impl<Cell> FromStr for Exact<Grid<Cell>>
-where
-    Cell: Default + TryFrom<char> + Clone,
-{
-    type Err = ParseGridError<<Cell as TryFrom<char>>::Error>;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let lines: Result<Vec<Vec<Cell>>, _> = string
-            .split('\n')
-            .map(|line| line.chars().map(|char| char.try_into()).collect())
-            .collect();
-
-        match lines {
-            Ok(mut lines) => {
-                let width = lines.iter().max_by_key(|line| line.len()).unwrap().len();
-                let height = lines.len();
-
-                for line in &mut lines {
-                    line.resize(width, Cell::default());
-                }
-
-                let cells: Vec<Cell> = lines.into_iter().flatten().collect();
-                Ok(Self {
-                    grid: Grid {
-                        cells,
-                        width,
-                        height,
-                    },
-                })
-            }
-            Err(err) => Err(ParseGridError { source: err }),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -474,21 +511,10 @@ mod tests {
     }
 
     // A 2D point struct.
+    #[derive(GridPosition)]
     struct Point {
         x: i32,
         y: i32,
-    }
-    // Implement the GridPosition struct to be able to index into the grid with our points.
-    impl GridPosition for Point {
-        fn new(x: i32, y: i32) -> Self {
-            Self { x, y }
-        }
-        fn x(&self) -> i32 {
-            self.x
-        }
-        fn y(&self) -> i32 {
-            self.y
-        }
     }
 
     #[test]
@@ -499,20 +525,6 @@ mod tests {
         let result = result.unwrap();
         assert_eq!(result.to_string(), "abc");
     }
-
-    // #[test]
-    // fn test_exact_to_string() {
-    //     // Valid input.
-    //     let result = "abc
-    //     xx"
-    //     .parse::<Exact<Grid<char>>>();
-    //     assert!(result.is_err());
-
-    //     let result = "abc
-    //     xxx"
-    //     .parse::<Exact<Grid<char>>>();
-    //     assert!(result.is_ok());
-    // }
 
     #[test]
     fn test_struct_grid() {
@@ -541,17 +553,6 @@ mod tests {
         assert!(result.is_ok());
         let result = result.unwrap();
         assert_eq!(result.to_string(), "abc");
-    }
-
-    #[test]
-    fn test_option_grid() {
-        // TODO!
-        // Valid input.
-        // let result = "1 0".parse::<Grid<Option<i32>>>();
-        // assert!(result.is_ok());
-        // let result = result.unwrap();
-        // assert_eq!(result.to_string(), "1 0");
-        // assert!(resut.is_empty(Point { x: 1, y: 0 }));
     }
 
     #[test]

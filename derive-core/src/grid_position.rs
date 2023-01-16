@@ -12,7 +12,7 @@ pub fn derive_grid_position(input: TokenStream) -> TokenStream {
     let implementation_base = quote!(
         impl GridPosition for #struct_identifier {
             fn new(x: i32, y: i32) -> Self {
-                Self::new(x, y)
+                Self { x, y }
             }
 
             fn x(&self) -> i32 {

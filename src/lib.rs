@@ -15,10 +15,13 @@
 //! `Grid` provides access to the cells with 2D indexing with user types that implement the `GridPosition` trait.
 //! On top of that `Grid` provides iterators and other utilities.
 //!
+//! ## Reference
+//! Reference documentation can be found on docs.rs: https://docs.rs/game-grid/0.1.1/game_grid/
+//!
 //! ## Using the Grid with Bevy IVec2
 //! One of the core features of game-grid is to be able to index the grid with 2D vector structs that we use to make games.
 //! If you are using this with Bevy, the feature bevy-ivec2 includes a trait implementation of game_grid::GridPosition for IVec2 that allows to use IVec2 as index.
-//! To use it add this line to you Cargo.toml: game-grid = { git = "https://github.com/oilandrust/game-grid.git", features = ["bevy-ivec2"] }
+//! To use it add this line to you Cargo.toml: game-grid = { features = ["bevy-ivec2"] }
 //!
 //! ## Example:
 //!

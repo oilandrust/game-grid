@@ -1,6 +1,13 @@
 //! # Game Grid
 //!
-//! `game_grid` provides a simple 2D grid that can be used to prototype games.
+//! A simple 2D grid for prototyping games. Including easy parsing, indexing and iterators.
+//!
+//! ## Key features:
+//! * Easy parsing of string literal to typed 2D grid thanks to a derive macro.
+//! * Indexing with a 2D vector struct ex: Point { x: i32, y: i32 } instead of always writing the usual i = y * width + x
+//! * Iterators and utilities.
+//!
+//! ## Description
 //!
 //! The main struct is `Grid` that implements a grid able to contain values of a user `Cell` type.
 //! The user cell can be any type but it works best with enums that implement the GridCell trait.
@@ -8,7 +15,16 @@
 //! `Grid` provides access to the cells with 2D indexing with user types that implement the `GridPosition` trait.
 //! On top of that `Grid` provides iterators and other utilities.
 //!
-//! # Examples:
+//! ## Using the Grid with Bevy IVec2
+//! One of the core features of game-grid is to be able to index the grid with 2D vector structs that we use to make games.
+//! If you are using this with Bevy, the feature bevy-ivec2 includes a trait implementation of game_grid::GridPosition for IVec2 that allows to use IVec2 as index.
+//! To use it add this line to you Cargo.toml:
+//!
+//! ```
+//! [dependencies]
+//! game-grid = { git = "https://github.com/oilandrust/game-grid.git", features = ["bevy-ivec2"] }
+//! ```
+//! ## Example:
 //!
 //! ```
 //! use game_grid::*;

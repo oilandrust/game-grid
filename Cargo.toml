@@ -2,6 +2,13 @@
 name = "game-grid"
 version = "0.1.0"
 edition = "2021"
+authors = ["Olivier Rouiller <o.rouiller@gmail.com>"]
+license = "MIT"
+description = "A simple 2D grid for prototyping games. Including easy parsing, indexing and iterators."
+homepage = "https://github.com/oilandrust/game-grid"
+repository = "https://github.com/oilandrust/game-grid.git"
+keywords = ["gamedev", "game", "grid", "2D", "utility"]
+categories = ["game-development"]
 
 [workspace]
 members = ["derive", "derive-core"]

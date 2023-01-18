@@ -1,4 +1,4 @@
-use derive_core::{derive_grid_cell, derive_grid_position};
+use game_grid_derive_core::{derive_grid_cell, derive_grid_position};
 use proc_macro::TokenStream;
 use proc_macro_error::proc_macro_error;
 

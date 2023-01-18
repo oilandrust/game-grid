@@ -81,8 +81,8 @@ use std::ops::Index;
 use std::slice::IterMut;
 use std::{fmt::Display, str::FromStr};
 
-pub use derive::GridCell;
-pub use derive::GridPosition;
+pub use game_grid_derive::GridCell;
+pub use game_grid_derive::GridPosition;
 
 /// Trait to implement a type that can be used as a grid cell with pparsing and display functionalities.
 ///
@@ -635,7 +635,7 @@ mod tests {
 
     #[test]
     fn test_derive() {
-        use derive::GridCell;
+        use game_grid_derive::GridCell;
 
         #[derive(GridCell, PartialEq, Eq, Copy, Clone, Debug)]
         enum Cell {
@@ -663,7 +663,7 @@ mod tests {
 
     #[test]
     fn test_derive_range() {
-        use derive::GridCell;
+        use game_grid_derive::GridCell;
 
         #[derive(GridCell, PartialEq, Eq, Copy, Clone, Debug, Default)]
         enum Cell {

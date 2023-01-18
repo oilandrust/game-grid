@@ -81,7 +81,8 @@ use std::ops::Index;
 use std::slice::IterMut;
 use std::{fmt::Display, str::FromStr};
 
-pub use derive::*;
+pub use derive::GridCell;
+pub use derive::GridPosition;
 
 /// Trait to implement a type that can be used as a grid cell with pparsing and display functionalities.
 ///
